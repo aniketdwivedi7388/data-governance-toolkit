@@ -1,0 +1,238 @@
+# ---------------------------------------------------------------------------
+# Data-quality rule set: client master
+#
+# This file is the artefact a data steward owns and reviews. It is deliberately
+# free of code so that the people accountable for the rules can read and change
+# them without a Python review.
+#
+# Run it:
+#   python dq_engine.py --data sample_customers.csv --rules example_rules.yaml
+#
+# Every rule carries an `owner`. The engine refuses to load a rule without one:
+# a rule with no accountable owner is a report, not a control.
+# ---------------------------------------------------------------------------
+dataset: client_master
+description: >
+  Quality rules for the golden client master record. Scope is the record
+  itself, not the downstream reporting views.
+version: "1.3"
+
+# Global gate. Calibrate from observed history, not from a round number:
+# if this feed normally runs at 99.4%, a 95% gate will never fire when it
+# matters. Set it just below the worst normal day.
+fail_under: 0.90
+
+rules:
+
+  # -- completeness -------------------------------------------------------
+  - id: CLI-CMP-001
+    name: Client identifier is present
+    dimension: completeness
+    check: not_null
+    column: client_id
+    severity: ERROR
+    owner: Client Data Steward
+    description: >
+      Every client master record must carry an identifier. A record without one
+      cannot be referenced by any transaction and cannot be governed.
+
+  - id: CLI-CMP-002
+    name: Client name is present
+    dimension: completeness
+    check: not_blank
+    column: client_name
+    severity: ERROR
+    owner: Client Data Steward
+    description: >
+      Legal name is mandatory for regulatory reporting and for client
+      correspondence.
+
+  - id: CLI-CMP-003
+    name: LEI present for institutional and wholesale clients
+    dimension: completeness
+    check: conditional_not_null
+    column: lei
+    params:
+      when_column: client_segment
+      when_value: INSTITUTIONAL
+    severity: ERROR
+    owner: Regulatory Reporting Lead
+    description: >
+      Institutional clients require a Legal Entity Identifier for transaction
+      reporting. Retail clients do not, which is why this is conditional rather
+      than a blanket not-null.
+
+  - id: CLI-CMP-004
+    name: AUM is present for active clients
+    dimension: completeness
+    check: conditional_not_null
+    column: aum_usd
+    params:
+      when_column: status
+      when_value: ACTIVE
+    severity: ERROR
+    owner: Client Data Steward
+    description: An active client must have a reported AUM figure, even if zero.
+
+  # -- validity -----------------------------------------------------------
+  - id: CLI-VAL-001
+    name: Client identifier format
+    dimension: validity
+    check: regex
+    column: client_id
+    params:
+      pattern: "CLI[0-9]{7}"
+    severity: ERROR
+    owner: Client Data Steward
+    description: Client identifiers follow the CLInnnnnnn convention.
+
+  - id: CLI-VAL-002
+    name: Client segment is a controlled value
+    dimension: validity
+    check: allowed_values
+    column: client_segment
+    params:
+      values: [INSTITUTIONAL, WHOLESALE, RETAIL, PRIVATE_WEALTH]
+    severity: ERROR
+    owner: Client Data Steward
+    description: >
+      Segment drives reporting aggregation and suitability rules. An
+      out-of-list value silently drops the client from segment reporting.
+
+  - id: CLI-VAL-003
+    name: Risk rating uses the approved scale
+    dimension: validity
+    check: allowed_values
+    column: risk_rating
+    params:
+      values: [LOW, MEDIUM, HIGH]
+    severity: ERROR
+    owner: Risk Data Owner
+    description: The approved scale is three points. Any other value is unmapped.
+
+  - id: CLI-VAL-004
+    name: Country is a two-letter ISO code
+    dimension: validity
+    check: regex
+    column: country
+    params:
+      pattern: "[A-Z]{2}"
+    severity: WARN
+    owner: Client Data Steward
+    description: >
+      Warn rather than error: a small number of legacy records still hold full
+      country names and are being remediated. Promote to ERROR once the
+      backlog clears.
+
+  - id: CLI-VAL-005
+    name: Email is syntactically valid
+    dimension: validity
+    check: regex
+    column: email
+    params:
+      pattern: "[^@\\s]+@[^@\\s]+\\.[^@\\s]+"
+    severity: WARN
+    owner: Client Data Steward
+    description: >
+      Syntax only. Deliverability is a different control and cannot be checked
+      here without sending mail.
+
+  - id: CLI-VAL-006
+    name: LEI is 20 alphanumeric characters
+    dimension: validity
+    check: regex
+    column: lei
+    params:
+      pattern: "[A-Z0-9]{20}"
+    severity: WARN
+    owner: Regulatory Reporting Lead
+    description: >
+      Structural check only; this does not verify the LEI against the GLEIF
+      register, which is a separate reference-data control.
+
+  - id: CLI-VAL-007
+    name: Status is a controlled value
+    dimension: validity
+    check: allowed_values
+    column: status
+    params:
+      values: [ACTIVE, DORMANT, CLOSED, PENDING]
+    severity: ERROR
+    owner: Client Data Steward
+
+  # -- accuracy -----------------------------------------------------------
+  - id: CLI-ACC-001
+    name: AUM is not negative
+    dimension: accuracy
+    check: range
+    column: aum_usd
+    params:
+      min: 0
+    severity: ERROR
+    owner: Client Data Steward
+    description: >
+      Negative AUM indicates a sign error or an unreconciled short position
+      leaking into the master record.
+
+  - id: CLI-ACC-002
+    name: AUM within plausible bounds
+    dimension: accuracy
+    check: range
+    column: aum_usd
+    params:
+      min: 0
+      max: 100000000000
+    severity: WARN
+    owner: Client Data Steward
+    description: >
+      A plausibility band, not a business rule. Calibrate the upper bound from
+      the observed distribution; its purpose is to catch unit errors, such as a
+      figure loaded in minor units.
+
+  # -- consistency --------------------------------------------------------
+  - id: CLI-CON-001
+    name: Last review is on or after onboarding
+    dimension: consistency
+    check: date_order
+    column: last_review_date
+    params:
+      after_column: onboarded_date
+    severity: ERROR
+    owner: Client Data Steward
+    description: >
+      A review cannot predate onboarding. This usually indicates a migrated
+      record whose dates were mapped to the wrong fields.
+
+  # -- uniqueness ---------------------------------------------------------
+  - id: CLI-UNQ-001
+    name: Client identifier is unique
+    dimension: uniqueness
+    check: unique
+    column: client_id
+    severity: ERROR
+    owner: Client Data Steward
+    description: >
+      The primary key. A duplicate here double-counts the client in every
+      aggregate downstream.
+
+  # -- timeliness ---------------------------------------------------------
+  - id: CLI-TML-001
+    name: Onboarding date is not in the future
+    dimension: timeliness
+    check: not_future
+    column: onboarded_date
+    params:
+      tolerance_minutes: 1440
+    severity: ERROR
+    owner: Client Data Steward
+    description: >
+      A future onboarding date is a data-entry or timezone error. It also
+      poisons any high-water-mark incremental load that keys on this column.
+
+  - id: CLI-TML-002
+    name: Review date is a parseable date
+    dimension: timeliness
+    check: is_date
+    column: last_review_date
+    severity: ERROR
+    owner: Compliance Data Steward
