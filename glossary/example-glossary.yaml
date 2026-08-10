@@ -1,0 +1,701 @@
+# ---------------------------------------------------------------------------
+# Example business glossary - asset management / financial services flavour
+# ---------------------------------------------------------------------------
+#
+# These are worked examples of the schema described in
+# business-glossary-template.md. They are illustrative and generic: system
+# names are placeholders (crm_platform, book_of_record, ...) and must be
+# replaced with your own. The definitions are written to be defensible in
+# review, not to match any particular firm's house convention - expect to
+# argue about them, which is the point.
+#
+# SCHEMA
+# ------
+#   term                     Singular business noun phrase. No acronyms.
+#   abbreviation             Common short form, searchable as an alias.
+#   definition               1-3 sentences. No formula, no circularity, no
+#                            internal system names. States the boundary.
+#   domain                   Owning data domain. Routes approvals.
+#   owner                    Accountable business role for the meaning.
+#   steward                  Day-to-day maintainer.
+#   status                   draft | proposed | approved | deprecated | retired
+#   effective_from           Date this meaning became authoritative.
+#   effective_to             null while current; set on deprecation.
+#   version                  Increments on any scope change.
+#   synonyms                 Words the business uses for the same concept.
+#   not_to_be_confused_with  Near-miss terms. The highest-value field here.
+#   examples                 >= 2 instances that qualify.
+#   counter_examples         >= 1 instance that does NOT qualify.
+#   ambiguity_note           Known disagreement + how to resolve it. Optional.
+#   related_terms            Typed relations: is_a | part_of | governs |
+#                            calculated_from | replaced_by | contrasts_with
+#   physical_mappings        Where the concept is realised. May be empty (a
+#                            concept with no store is still a valid term) or
+#                            hold many entries across systems.
+#     fidelity               exact | approximate | partial - how faithfully
+#                            the column represents the concept.
+#   sensitivity              public | internal | confidential | restricted
+#   source_authority         External standard or regulation, if any.
+#   review_cycle             annual | semiannual | quarterly
+#   last_reviewed            Date of most recent attestation.
+#
+# ---------------------------------------------------------------------------
+
+schema_version: 1
+glossary_name: Example Asset Management Glossary
+maintained_by: Data Governance Office
+generated_note: >
+  Illustrative content for a public toolkit. Replace owners, stewards and
+  physical mappings with your own before use.
+
+terms:
+
+  # -------------------------------------------------------------------------
+  # 1. A headline metric-bearing term with MULTIPLE physical mappings across
+  #    systems, deliberately showing differing fidelity.
+  # -------------------------------------------------------------------------
+  - term: Assets under Management
+    abbreviation: AUM
+    definition: >
+      The market value of client assets for which the firm holds a discretionary
+      or advisory management responsibility at a point in time. Assets are
+      counted where the firm makes or advises on investment decisions;
+      assets held purely in a custody or administration capacity, with no
+      investment responsibility, are excluded.
+    domain: Investment Management
+    owner: Head of Investment Reporting
+    steward: Investment Data Steward
+    status: approved
+    effective_from: "2024-01-01"
+    effective_to: null
+    version: 3
+
+    synonyms:
+      - Managed Assets
+      - Assets under Advice
+    not_to_be_confused_with:
+      - Assets under Administration
+      - Assets under Custody
+      - Net New Assets
+
+    examples:
+      - A discretionary segregated mandate valued at market close.
+      - A client holding in a pooled fund where the firm is the appointed manager.
+      - An advisory portfolio where the firm issues recommendations the client acts on.
+    counter_examples:
+      - Assets held in custody for a third-party manager with no advisory role.
+      - Committed but undrawn capital in a closed-ended vehicle.
+      - A prospect pipeline opportunity that has not been funded.
+
+    ambiguity_note: >
+      Double counting is the recurring dispute. Where a segregated mandate
+      invests into an in-house pooled fund, the assets exist at both levels.
+      The convention here is to count them once, at the level closest to the
+      client relationship, and to report the eliminated amount separately so
+      that the adjustment is visible rather than silent. Any external
+      disclosure must state which convention was used.
+
+    related_terms:
+      - relation: calculated_from
+        target: Valuation
+      - relation: contrasts_with
+        target: Net New Assets
+      - relation: part_of
+        target: Mandate
+
+    physical_mappings:
+      - system: book_of_record
+        dataset: position_valuation_daily
+        column: market_value_base
+        fidelity: exact
+        note: >
+          Authoritative source. Base currency, struck at official valuation
+          point. Excludes custody-only accounts via mandate_role filter.
+      - system: crm_platform
+        dataset: relationship_summary
+        column: aum_snapshot_amt
+        fidelity: approximate
+        note: >
+          Relationship-manager view, refreshed nightly and rounded. Suitable
+          for client conversations, never for external disclosure.
+      - system: regulatory_reporting_mart
+        dataset: firm_aum_regulatory
+        column: reg_aum_amt
+        fidelity: partial
+        note: >
+          Applies regulatory scope rules that differ from the commercial
+          definition. Reconciles to book_of_record with a documented bridge.
+
+    sensitivity: confidential
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2026-02-11"
+
+  # -------------------------------------------------------------------------
+  # 2. A flow concept - deliberately free of formula, grain and currency.
+  # -------------------------------------------------------------------------
+  - term: Net New Assets
+    abbreviation: NNA
+    definition: >
+      The change in client assets over a period that arises from client-driven
+      money movement rather than from investment performance. Contributions,
+      new funded mandates and transfers in increase it; redemptions, fee
+      withdrawals, terminations and transfers out decrease it. Changes in
+      market value are excluded by definition.
+    domain: Investment Management
+    owner: Head of Investment Reporting
+    steward: Investment Data Steward
+    status: approved
+    effective_from: "2024-01-01"
+    effective_to: null
+    version: 2
+
+    synonyms:
+      - Net Flows
+      - Net New Money
+    not_to_be_confused_with:
+      - Assets under Management
+      - Gross Inflow
+
+    examples:
+      - A client subscribing new cash into an existing mandate.
+      - A newly funded mandate transferring in from a competitor.
+      - A partial redemption reducing the figure for the period.
+    counter_examples:
+      - An increase in portfolio value driven by market appreciation.
+      - A currency translation movement on an unchanged holding.
+      - A reclassification of an existing mandate between reporting segments.
+
+    ambiguity_note: >
+      Reinvested income divides opinion. Treating it as a flow inflates the
+      measure relative to peers who treat it as performance. The convention
+      here is to exclude reinvested income and dividends from Net New Assets
+      and to disclose the treatment alongside any published figure.
+
+    related_terms:
+      - relation: calculated_from
+        target: Mandate
+      - relation: contrasts_with
+        target: Assets under Management
+
+    physical_mappings:
+      - system: book_of_record
+        dataset: cash_flow_transaction
+        column: net_flow_base_amt
+        fidelity: exact
+        note: >
+          Derived from classified transaction types. The classification rule
+          set is itself a governed artefact and changes require impact analysis.
+
+    sensitivity: confidential
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2026-02-11"
+
+  # -------------------------------------------------------------------------
+  # 3. The classic contested term. Ambiguity note carries the disambiguation
+  #    guidance rather than pretending the disagreement is settled.
+  # -------------------------------------------------------------------------
+  - term: Active Client
+    abbreviation: ""
+    definition: >
+      A client relationship holding at least one funded account with a non-zero
+      balance, that has not been formally closed or transferred away. Absence of
+      recent transaction activity does not remove active status; only formal
+      closure, full transfer out or the client's death terminates it.
+    domain: Client
+    owner: Head of Client Operations
+    steward: Client Data Steward
+    status: approved
+    effective_from: "2025-04-01"
+    effective_to: null
+    version: 4
+
+    synonyms:
+      - Live Client
+      - Open Relationship
+    not_to_be_confused_with:
+      - Engaged Client
+      - Prospect
+      - Dormant Client
+
+    examples:
+      - A client with one funded mandate and no transactions for eighteen months.
+      - A client who has redeemed most of a holding but retains a residual balance.
+    counter_examples:
+      - A prospect with a signed agreement but no funded account.
+      - A relationship fully transferred to another provider last quarter.
+      - A closed account retained only for regulatory record keeping.
+
+    ambiguity_note: >
+      Two readings compete. Operations reads "active" as the account being open;
+      distribution reads it as the client being commercially engaged in the last
+      twelve months. Both are legitimate and neither should be suppressed.
+      Resolution: this term carries the operational reading, and the commercial
+      reading lives as the separate term Engaged Client. Any report using the
+      word "active" must state which of the two it means in the footnote. Where
+      a figure is quoted without qualification, it is this term.
+
+    related_terms:
+      - relation: is_a
+        target: Client
+      - relation: contrasts_with
+        target: Engaged Client
+      - relation: part_of
+        target: Client Segment
+
+    physical_mappings:
+      - system: crm_platform
+        dataset: client_master
+        column: relationship_status_cd
+        fidelity: exact
+        note: "Values A and R map to active; C, T and D do not."
+      - system: book_of_record
+        dataset: account_master
+        column: account_status_cd
+        fidelity: partial
+        note: >
+          Account-level, not relationship-level. A client is active if any
+          account is. Aggregation is required and is not stored.
+
+    sensitivity: confidential
+    source_authority: ""
+    review_cycle: semiannual
+    last_reviewed: "2026-04-02"
+
+  # -------------------------------------------------------------------------
+  # 4. Cardinality, temporality and restatement behaviour made explicit.
+  # -------------------------------------------------------------------------
+  - term: Client Segment
+    abbreviation: ""
+    definition: >
+      The single classification assigned to a client that reflects the servicing
+      model and commercial relationship the firm operates for them, combining
+      the distribution channel, the sophistication category and the servicing
+      tier. Each client carries exactly one segment at any point in time.
+      Segment changes are effective-dated and do not restate prior periods.
+    domain: Client
+    owner: Head of Distribution Strategy
+    steward: Client Data Steward
+    status: approved
+    effective_from: "2025-10-01"
+    effective_to: null
+    version: 2
+
+    synonyms:
+      - Client Classification
+    not_to_be_confused_with:
+      - Client Tier
+      - Risk Rating
+      - Regulatory Client Category
+
+    examples:
+      - An institutional client served through a direct relationship team.
+      - An intermediated retail client served through a third-party platform.
+    counter_examples:
+      - A regulatory categorisation such as professional or retail, which is
+        assigned under a rulebook and may differ from the commercial segment.
+      - A product-level classification applied to a holding rather than a client.
+
+    related_terms:
+      - relation: part_of
+        target: Client
+      - relation: contrasts_with
+        target: Risk Rating
+
+    physical_mappings:
+      - system: crm_platform
+        dataset: client_segment_history
+        column: segment_cd
+        fidelity: exact
+        note: "Effective-dated. Query with valid_from and valid_to, never latest-only."
+
+    sensitivity: confidential
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2026-01-20"
+
+  # -------------------------------------------------------------------------
+  # 5. DEPRECATED term with a mandatory replacement pointer.
+  # -------------------------------------------------------------------------
+  - term: Client Tier
+    abbreviation: ""
+    definition: >
+      A ranking of clients into bands intended to reflect commercial importance,
+      historically used to prioritise servicing effort. Superseded because the
+      banding conflated revenue, asset size and servicing model into a single
+      value that could not be reconciled between distribution and operations.
+    domain: Client
+    owner: Head of Distribution Strategy
+    steward: Client Data Steward
+    status: deprecated
+    effective_from: "2019-01-01"
+    effective_to: "2025-09-30"
+    version: 5
+
+    synonyms:
+      - Client Band
+      - Client Grade
+    not_to_be_confused_with:
+      - Client Segment
+
+    examples:
+      - Historic reporting for periods ending on or before 30 September 2025.
+    counter_examples:
+      - Any new report, model, extract or contract created after that date.
+
+    ambiguity_note: >
+      Retained solely so that historic reports remain interpretable. Do not
+      create new mappings, rules or metrics against this term. Requests to
+      reinstate it should be redirected to Client Segment, which separates the
+      dimensions that Client Tier merged.
+
+    related_terms:
+      - relation: replaced_by
+        target: Client Segment
+
+    physical_mappings:
+      - system: crm_platform
+        dataset: client_master
+        column: client_tier_cd
+        fidelity: exact
+        note: >
+          Column frozen. No values written after 2025-09-30. Retained for
+          historic reproduction only and scheduled for removal once the
+          retention window on affected reports expires.
+
+    sensitivity: confidential
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2025-10-15"
+
+  # -------------------------------------------------------------------------
+  # 6 & 7. A contrasting pair. Splitting is nearly always the right answer
+  #        when a draft definition contains "depending on".
+  # -------------------------------------------------------------------------
+  - term: Trade Date
+    abbreviation: ""
+    definition: >
+      The date on which the parties agree the terms of a transaction and the
+      economic exposure passes, irrespective of when cash and securities are
+      exchanged. Performance, exposure and risk measures are struck on this
+      basis unless a report states otherwise.
+    domain: Transaction
+    owner: Head of Investment Operations
+    steward: Transaction Data Steward
+    status: approved
+    effective_from: "2023-06-01"
+    effective_to: null
+    version: 1
+
+    synonyms:
+      - Deal Date
+      - Execution Date
+    not_to_be_confused_with:
+      - Settlement Date
+      - Booking Date
+      - Value Date
+
+    examples:
+      - An equity purchase agreed on a Thursday and settling the following Monday
+        has a trade date of the Thursday.
+      - A forward agreed today for exchange in three months has today as its trade date.
+    counter_examples:
+      - The date an operations team keys the transaction into a system, which is
+        the booking date and may be later.
+
+    ambiguity_note: >
+      Time zone is the practical trap. A transaction executed late in one region
+      may fall on the previous or next date in another. The convention is to
+      record trade date in the market's local convention and to carry the
+      execution timestamp separately so that any restatement is reproducible.
+
+    related_terms:
+      - relation: contrasts_with
+        target: Settlement Date
+      - relation: part_of
+        target: Mandate
+
+    physical_mappings:
+      - system: book_of_record
+        dataset: transaction_detail
+        column: trade_dt
+        fidelity: exact
+        note: "Market local convention. Paired with execution_ts for audit."
+
+    sensitivity: internal
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2026-03-05"
+
+  - term: Settlement Date
+    abbreviation: ""
+    definition: >
+      The date on which the exchange of cash and securities for a transaction
+      completes and legal ownership transfers. Cash availability, custody
+      positions and settlement risk measures are struck on this basis.
+    domain: Transaction
+    owner: Head of Investment Operations
+    steward: Transaction Data Steward
+    status: approved
+    effective_from: "2023-06-01"
+    effective_to: null
+    version: 1
+
+    synonyms:
+      - Value Date
+    not_to_be_confused_with:
+      - Trade Date
+      - Booking Date
+
+    examples:
+      - The Monday on which cash leaves the account for a purchase agreed the
+        previous Thursday.
+      - The revised date recorded when an original settlement fails and is reattempted.
+    counter_examples:
+      - The originally expected settlement date on a failed trade, which must be
+        superseded rather than retained as fact.
+
+    related_terms:
+      - relation: contrasts_with
+        target: Trade Date
+
+    physical_mappings:
+      - system: book_of_record
+        dataset: transaction_detail
+        column: settle_dt
+        fidelity: exact
+        note: "Reflects actual settlement. Expected date held in expected_settle_dt."
+      - system: custody_reconciliation
+        dataset: settlement_status
+        column: actual_settle_dt
+        fidelity: exact
+        note: "Custodian-confirmed. Authoritative where the two disagree."
+
+    sensitivity: internal
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2026-03-05"
+
+  # -------------------------------------------------------------------------
+  # 8. A term whose value is that it survives system replacement.
+  # -------------------------------------------------------------------------
+  - term: Mandate
+    abbreviation: ""
+    definition: >
+      A formal instruction from a client that authorises the firm to manage a
+      defined pool of assets according to agreed investment objectives,
+      constraints and permitted instruments. A mandate is the unit at which
+      investment discretion is granted and may span more than one account.
+    domain: Investment Management
+    owner: Head of Investment Management
+    steward: Investment Data Steward
+    status: approved
+    effective_from: "2023-01-01"
+    effective_to: null
+    version: 2
+
+    synonyms:
+      - Investment Management Agreement
+      - Portfolio Mandate
+    not_to_be_confused_with:
+      - Account
+      - Product
+      - Fund
+
+    examples:
+      - A segregated balanced mandate for a pension scheme with a stated benchmark.
+      - A single-strategy mandate funded across two custodial accounts.
+    counter_examples:
+      - A pooled fund holding, where discretion sits with the fund manager rather
+        than being granted by the individual investor.
+      - An execution-only arrangement carrying no investment discretion.
+
+    related_terms:
+      - relation: part_of
+        target: Client
+      - relation: governs
+        target: Benchmark
+
+    physical_mappings:
+      - system: book_of_record
+        dataset: mandate_master
+        column: mandate_id
+        fidelity: exact
+        note: "Primary key for the concept across downstream models."
+
+    sensitivity: confidential
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2026-01-20"
+
+  # -------------------------------------------------------------------------
+  # 9. A term whose authority is external.
+  # -------------------------------------------------------------------------
+  - term: Benchmark
+    abbreviation: ""
+    definition: >
+      An external reference series against which the performance and risk of a
+      mandate or fund is assessed, agreed with the client and stated in the
+      governing agreement. A benchmark is a comparator, not a target, and does
+      not constrain what the portfolio may hold unless the agreement says so.
+    domain: Investment Management
+    owner: Head of Performance Measurement
+    steward: Investment Data Steward
+    status: approved
+    effective_from: "2024-04-01"
+    effective_to: null
+    version: 1
+
+    synonyms:
+      - Index
+      - Comparator Index
+    not_to_be_confused_with:
+      - Target Return
+      - Investment Objective
+      - Peer Group
+
+    examples:
+      - A published equity index named in a mandate agreement.
+      - A weighted composite of two published indices, defined in the agreement.
+    counter_examples:
+      - An internally constructed comparator used for management information but
+        not agreed with the client.
+      - An absolute return target expressed as a rate, which is an objective.
+
+    ambiguity_note: >
+      Composite benchmarks and rebalancing frequency cause most performance
+      disputes. Where a composite is used, its constituents and rebalancing rule
+      form part of the benchmark definition and are versioned with it.
+
+    related_terms:
+      - relation: part_of
+        target: Mandate
+
+    physical_mappings:
+      - system: performance_engine
+        dataset: benchmark_definition
+        column: benchmark_id
+        fidelity: exact
+        note: "Composite constituents held in benchmark_constituent, effective-dated."
+      - system: market_data_feed
+        dataset: index_level_daily
+        column: index_level
+        fidelity: exact
+        note: >
+          Vendor-supplied levels. Licensing constrains redistribution; check
+          entitlement before exposing in any client-facing surface.
+
+    sensitivity: internal
+    source_authority: "Vendor index methodology as published by the index provider"
+    review_cycle: annual
+    last_reviewed: "2026-04-02"
+
+  # -------------------------------------------------------------------------
+  # 10. A term that is frequently overloaded across unrelated domains.
+  # -------------------------------------------------------------------------
+  - term: Risk Rating
+    abbreviation: ""
+    definition: >
+      An assessment expressed on a defined ordinal scale that summarises the
+      level of a specified risk for a specified subject. A risk rating is only
+      meaningful when both the risk type and the subject are stated; the phrase
+      alone is not a definition.
+    domain: Risk
+    owner: Head of Risk
+    steward: Risk Data Steward
+    status: approved
+    effective_from: "2025-01-01"
+    effective_to: null
+    version: 2
+
+    synonyms:
+      - Risk Score
+      - Risk Grade
+    not_to_be_confused_with:
+      - Client Segment
+      - Credit Rating
+      - Investment Risk Profile
+
+    examples:
+      - A financial crime risk rating assigned to a client relationship.
+      - An investment risk rating assigned to a fund on a published scale.
+    counter_examples:
+      - A credit rating issued by an external agency for an issuer, which is a
+        distinct concept with its own authority.
+      - An unlabelled numeric score with no stated scale or subject.
+
+    ambiguity_note: >
+      This is a deliberately abstract parent term. At least three unrelated
+      ratings share the phrase: financial crime risk on a client, investment
+      risk on a product, and operational risk on a process. Never use the bare
+      phrase in a report, a column name or a model feature. Always qualify it,
+      and relate the qualified child term to this parent with an is_a relation.
+
+    related_terms:
+      - relation: contrasts_with
+        target: Client Segment
+
+    physical_mappings: []
+
+    sensitivity: restricted
+    source_authority: ""
+    review_cycle: semiannual
+    last_reviewed: "2026-05-14"
+
+  # -------------------------------------------------------------------------
+  # 11. A governance term - the glossary should define its own vocabulary.
+  # -------------------------------------------------------------------------
+  - term: Data Quality Incident
+    abbreviation: ""
+    definition: >
+      A confirmed instance where data has failed to meet an agreed expectation
+      and the failure has, or plausibly could have, affected a decision, a
+      report or an obligation. An incident is distinct from a rule breach: a
+      rule breach is a measurement, and it becomes an incident once triaged and
+      accepted as real by the owning steward.
+    domain: Data Governance
+    owner: Data Governance Lead
+    steward: Data Quality Steward
+    status: approved
+    effective_from: "2025-07-01"
+    effective_to: null
+    version: 1
+
+    synonyms:
+      - Data Issue
+    not_to_be_confused_with:
+      - Data Quality Rule Breach
+      - Operational Incident
+
+    examples:
+      - A completeness rule breach on a client identifier that reached a
+        regulatory return before detection.
+      - A duplicate record set that caused a client to be counted twice in a
+        published figure.
+    counter_examples:
+      - A rule breach investigated and found to be a false positive caused by a
+        rule parameter that no longer matched the business calendar.
+      - A platform outage with no impact on the correctness of stored data.
+
+    ambiguity_note: >
+      The distinction from a rule breach matters for measurement. Counting every
+      breach as an incident makes the incident count a function of how many
+      rules you deployed rather than of data health. Triage is what converts one
+      into the other, and the triage decision must be recorded either way.
+
+    related_terms:
+      - relation: governs
+        target: Data Quality Rule
+
+    physical_mappings:
+      - system: governance_platform
+        dataset: issue_register
+        column: issue_id
+        fidelity: exact
+        note: "One row per confirmed incident. Breaches held separately in rule_result."
+
+    sensitivity: internal
+    source_authority: ""
+    review_cycle: annual
+    last_reviewed: "2026-05-14"
